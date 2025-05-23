@@ -1,9 +1,12 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Book, Film, Search, User } from 'lucide-react';
+import { Book, Film, Search, User, LogOut, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Sheet,
   SheetContent,
@@ -12,11 +15,20 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, profile, isAdmin, signOut } = useAuth();
   
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +37,23 @@ const Navbar = () => {
       setIsSearchOpen(false);
       setSearchQuery('');
     }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const getUserInitials = () => {
+    if (!user) return 'GU';
+    if (profile?.username) {
+      return profile.username.substring(0, 2).toUpperCase();
+    }
+    return user.email ? user.email.substring(0, 2).toUpperCase() : 'GU';
   };
   
   return (
@@ -83,38 +112,45 @@ const Navbar = () => {
                 <Search size={20} />
               </Button>
               
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="hidden md:flex gap-2">
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="rounded-full p-0 h-10 w-10 aspect-square">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={profile?.avatar_url || ""} />
+                        <AvatarFallback className="bg-navy text-white text-sm">
+                          {getUserInitials()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem className="font-medium">
+                      {profile?.username || user.email}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    
+                    {isAdmin && (
+                      <DropdownMenuItem onSelect={() => navigate('/admin')}>
+                        <Shield className="mr-2 h-4 w-4" />
+                        <span>Admin Dashboard</span>
+                      </DropdownMenuItem>
+                    )}
+                    
+                    <DropdownMenuItem onSelect={handleSignOut}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Sign Out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button variant="outline" className="hidden md:flex gap-2" asChild>
+                  <Link to="/auth">
                     <User size={16} />
                     Sign In
-                  </Button>
-                </SheetTrigger>
-                <SheetContent>
-                  <SheetHeader>
-                    <SheetTitle>Sign In</SheetTitle>
-                    <SheetDescription>
-                      Access your account to save reviews and manage your content.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="py-4 mt-4">
-                    <form className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Email</label>
-                        <Input type="email" placeholder="your@email.com" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Password</label>
-                        <Input type="password" placeholder="••••••••" />
-                      </div>
-                      <Button type="button" className="w-full">Sign In</Button>
-                    </form>
-                    <div className="mt-4 text-center text-sm text-gray-500">
-                      <p>Don't have an account? <Button variant="link" className="p-0 h-auto font-normal">Register</Button></p>
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
+                  </Link>
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -137,38 +173,46 @@ const Navbar = () => {
             <Film size={18} />
             <span className="text-xs">Movies</span>
           </Link>
-          <Sheet>
-            <SheetTrigger asChild>
-              <button className="flex flex-col items-center gap-1 py-1 text-navy-light hover:text-navy transition-colors bg-transparent border-none">
-                <User size={18} />
-                <span className="text-xs">Sign In</span>
-              </button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
-                <SheetTitle>Sign In</SheetTitle>
-                <SheetDescription>
-                  Access your account to save reviews and manage your content.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="py-4 mt-4">
-                <form className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input type="email" placeholder="your@email.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Password</label>
-                    <Input type="password" placeholder="••••••••" />
-                  </div>
-                  <Button type="button" className="w-full">Sign In</Button>
-                </form>
-                <div className="mt-4 text-center text-sm text-gray-500">
-                  <p>Don't have an account? <Button variant="link" className="p-0 h-auto font-normal">Register</Button></p>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex flex-col items-center gap-1 py-1 h-auto bg-transparent border-none text-navy-light hover:text-navy transition-colors">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="bg-navy text-white text-xs">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs">Profile</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="font-medium">
+                  {profile?.username || user.email}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                
+                {isAdmin && (
+                  <DropdownMenuItem onSelect={() => navigate('/admin')}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Admin Dashboard</span>
+                  </DropdownMenuItem>
+                )}
+                
+                <DropdownMenuItem onSelect={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link 
+              to="/auth" 
+              className="flex flex-col items-center gap-1 py-1 text-navy-light hover:text-navy transition-colors"
+            >
+              <User size={18} />
+              <span className="text-xs">Sign In</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>

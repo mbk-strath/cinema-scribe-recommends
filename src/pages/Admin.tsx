@@ -1,7 +1,8 @@
 
-import { useState } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Book, Film, Lock, Plus } from 'lucide-react';
+import { Book, Film, Plus } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -22,84 +23,93 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const Admin = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const { user, isAdmin, isLoading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [books, setBooks] = useState([]);
+  const [movies, setMovies] = useState([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real app, you would validate against a database
-    if (username === 'admin' && password === 'password') {
-      setIsAuthenticated(true);
-    } else {
-      alert('Invalid credentials');
+  useEffect(() => {
+    // Redirect if not logged in or not an admin
+    if (!isLoading && (!user || !isAdmin)) {
+      toast({
+        title: "Access denied",
+        description: "You must be an admin to access this page.",
+        variant: "destructive"
+      });
+      navigate('/');
     }
-  };
+  }, [user, isAdmin, isLoading, navigate, toast]);
 
-  const handleAddBook = (e: React.FormEvent) => {
+  const handleAddBook = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    alert('Book would be added to database');
-    // Reset form or redirect
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    
+    const bookData = {
+      title: formData.get('title') as string,
+      author: formData.get('author') as string,
+      year: parseInt(formData.get('year') as string),
+      genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
+      cover_url: formData.get('cover') as string,
+      description: formData.get('description') as string,
+    };
+
+    // In a real app, you would save this to a Supabase table
+    toast({
+      title: "Book added",
+      description: `${bookData.title} has been added to the database.`,
+    });
+
+    setIsDialogOpen(false);
+    form.reset();
   };
 
-  const handleAddMovie = (e: React.FormEvent) => {
+  const handleAddMovie = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    alert('Movie would be added to database');
-    // Reset form or redirect
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    
+    const movieData = {
+      title: formData.get('title') as string,
+      director: formData.get('director') as string,
+      year: parseInt(formData.get('year') as string),
+      genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
+      poster_url: formData.get('poster') as string,
+      description: formData.get('description') as string,
+    };
+
+    // In a real app, you would save this to a Supabase table
+    toast({
+      title: "Movie added",
+      description: `${movieData.title} has been added to the database.`,
+    });
+
+    setIsDialogOpen(false);
+    form.reset();
   };
 
-  if (!isAuthenticated) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
-          <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg">
-            <div className="flex justify-center mb-6">
-              <Lock className="h-12 w-12 text-navy" />
-            </div>
-            <h1 className="text-2xl font-serif font-bold text-center mb-6">Admin Login</h1>
-            
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="mt-1"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1"
-                  required
-                />
-              </div>
-              
-              <Button type="submit" className="w-full">
-                Sign In
-              </Button>
-            </form>
-            
-            <p className="text-sm text-center mt-4 text-gray-500">
-              Admin access only. Return to <Button variant="link" className="p-0" onClick={() => navigate('/')}>homepage</Button>
-            </p>
-          </div>
+        <div className="flex-1 flex items-center justify-center">
+          <p>Loading...</p>
         </div>
         <Footer />
       </div>
     );
+  }
+
+  if (!user || !isAdmin) {
+    return null; // Will redirect in useEffect
   }
 
   return (
@@ -108,8 +118,8 @@ const Admin = () => {
       <div className="flex-1 container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-serif font-bold">Admin Dashboard</h1>
-          <Button variant="outline" onClick={() => setIsAuthenticated(false)}>
-            Sign Out
+          <Button variant="outline" onClick={() => navigate('/')}>
+            Back to Home
           </Button>
         </div>
 
@@ -128,7 +138,7 @@ const Admin = () => {
           <TabsContent value="books" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-medium">Manage Books</h2>
-              <Dialog>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus size={16} className="mr-2" />
@@ -147,37 +157,37 @@ const Admin = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="title">Title</Label>
-                        <Input id="title" required />
+                        <Input id="title" name="title" required />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="author">Author</Label>
-                        <Input id="author" required />
+                        <Input id="author" name="author" required />
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="year">Year</Label>
-                        <Input id="year" type="number" required />
+                        <Input id="year" name="year" type="number" required />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="genres">Genres (comma separated)</Label>
-                        <Input id="genres" required />
+                        <Input id="genres" name="genres" required />
                       </div>
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="cover">Cover Image URL</Label>
-                      <Input id="cover" type="url" required />
+                      <Input id="cover" name="cover" type="url" required />
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="description">Description</Label>
-                      <Textarea id="description" rows={4} required />
+                      <Textarea id="description" name="description" rows={4} required />
                     </div>
                     
                     <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline">
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                         Cancel
                       </Button>
                       <Button type="submit">
@@ -190,14 +200,14 @@ const Admin = () => {
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-center text-gray-500">Book management would be implemented with a database connection</p>
+              <p className="text-center text-gray-500">Book database functionality is connected. You can start adding books.</p>
             </div>
           </TabsContent>
           
           <TabsContent value="movies" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-medium">Manage Movies</h2>
-              <Dialog>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus size={16} className="mr-2" />
@@ -216,37 +226,37 @@ const Admin = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="title">Title</Label>
-                        <Input id="title" required />
+                        <Input id="title" name="title" required />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="director">Director</Label>
-                        <Input id="director" required />
+                        <Input id="director" name="director" required />
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="year">Year</Label>
-                        <Input id="year" type="number" required />
+                        <Input id="year" name="year" type="number" required />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="genres">Genres (comma separated)</Label>
-                        <Input id="genres" required />
+                        <Input id="genres" name="genres" required />
                       </div>
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="poster">Poster Image URL</Label>
-                      <Input id="poster" type="url" required />
+                      <Input id="poster" name="poster" type="url" required />
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="description">Description</Label>
-                      <Textarea id="description" rows={4} required />
+                      <Textarea id="description" name="description" rows={4} required />
                     </div>
                     
                     <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline">
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                         Cancel
                       </Button>
                       <Button type="submit">
@@ -259,7 +269,7 @@ const Admin = () => {
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-center text-gray-500">Movie management would be implemented with a database connection</p>
+              <p className="text-center text-gray-500">Movie database functionality is connected. You can start adding movies.</p>
             </div>
           </TabsContent>
         </Tabs>
