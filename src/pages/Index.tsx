@@ -9,31 +9,33 @@ import MediaCard from '@/components/MediaCard';
 import SearchBar from '@/components/SearchBar';
 import Footer from '@/components/Footer';
 import { 
-  getAllMedia, 
   getFeaturedMedia,
   getBooksByGenre,
   getMoviesByGenre,
-  Media
-} from '@/lib/data';
+} from '@/services/mediaService';
+import type { Media } from '@/services/mediaService';
+import { useQuery } from '@tanstack/react-query';
 
 const Index = () => {
-  const [featured, setFeatured] = useState<Media[]>([]);
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
-  const [recentBooks, setRecentBooks] = useState<Media[]>([]);
-  const [topMovies, setTopMovies] = useState<Media[]>([]);
   
-  useEffect(() => {
-    const featuredMedia = getFeaturedMedia();
-    setFeatured(featuredMedia);
-    
-    // Get recent fiction books
-    const fictionBooks = getBooksByGenre('Fiction');
-    setRecentBooks(fictionBooks.slice(0, 4));
-    
-    // Get top-rated movies
-    const allMovies = getMoviesByGenre('Drama');
-    setTopMovies(allMovies.slice(0, 4));
-  }, []);
+  // Fetch featured media
+  const { data: featured = [], isLoading: featuredLoading } = useQuery({
+    queryKey: ['featuredMedia'],
+    queryFn: getFeaturedMedia,
+  });
+  
+  // Fetch recent fiction books
+  const { data: recentBooks = [], isLoading: booksLoading } = useQuery({
+    queryKey: ['recentBooks', 'Fiction'],
+    queryFn: () => getBooksByGenre('Fiction'),
+  });
+  
+  // Fetch top drama movies
+  const { data: topMovies = [], isLoading: moviesLoading } = useQuery({
+    queryKey: ['topMovies', 'Drama'],
+    queryFn: () => getMoviesByGenre('Drama'),
+  });
   
   // Rotate through featured media every 8 seconds
   useEffect(() => {
@@ -46,8 +48,16 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [featured]);
   
-  if (featured.length === 0) {
-    return <div>Loading...</div>;
+  if (featuredLoading || featured.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <p>Loading...</p>
+        </div>
+        <Footer />
+      </div>
+    );
   }
   
   return (
@@ -89,9 +99,15 @@ const Index = () => {
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {recentBooks.map((book) => (
-              <MediaCard key={book.id} media={book} />
-            ))}
+            {booksLoading ? (
+              <p>Loading books...</p>
+            ) : recentBooks.length > 0 ? (
+              recentBooks.slice(0, 4).map((book) => (
+                <MediaCard key={book.id} media={book} />
+              ))
+            ) : (
+              <p>No books found</p>
+            )}
           </div>
         </div>
       </section>
@@ -113,9 +129,15 @@ const Index = () => {
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {topMovies.map((movie) => (
-              <MediaCard key={movie.id} media={movie} />
-            ))}
+            {moviesLoading ? (
+              <p>Loading movies...</p>
+            ) : topMovies.length > 0 ? (
+              topMovies.slice(0, 4).map((movie) => (
+                <MediaCard key={movie.id} media={movie} />
+              ))
+            ) : (
+              <p>No movies found</p>
+            )}
           </div>
         </div>
       </section>

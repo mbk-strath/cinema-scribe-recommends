@@ -8,25 +8,43 @@ import MediaCard from '@/components/MediaCard';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { searchMedia, getAllMedia, sampleBooks, sampleMovies, Media } from '@/lib/data';
+import { searchMedia, getBooks, getMovies } from '@/services/mediaService';
+import { useQuery } from '@tanstack/react-query';
+import type { Media } from '@/services/mediaService';
 
 const Browse = () => {
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('search') || '';
   const typeFilter = searchParams.get('type') || 'all';
   
-  const [results, setResults] = useState<Media[]>([]);
   const [activeTab, setActiveTab] = useState(typeFilter);
   const [showFilters, setShowFilters] = useState(false);
+  const [results, setResults] = useState<Media[]>([]);
+  
+  // Fetch all books
+  const { data: books = [], isLoading: booksLoading } = useQuery({
+    queryKey: ['books'],
+    queryFn: getBooks,
+  });
+  
+  // Fetch all movies
+  const { data: movies = [], isLoading: moviesLoading } = useQuery({
+    queryKey: ['movies'],
+    queryFn: getMovies,
+  });
+  
+  // Fetch search results if there's a query
+  const { data: searchResults = [], isLoading: searchLoading } = useQuery({
+    queryKey: ['search', searchQuery],
+    queryFn: () => searchMedia(searchQuery),
+    enabled: !!searchQuery,
+  });
   
   useEffect(() => {
     setActiveTab(typeFilter);
     
-    if (searchQuery) {
-      // Search with the query
-      const searchResults = searchMedia(searchQuery);
-      
-      // Apply type filter if specified
+    if (searchQuery && searchResults) {
+      // Filter search results by type
       if (typeFilter !== 'all') {
         const filteredResults = searchResults.filter(item => item.type === typeFilter);
         setResults(filteredResults);
@@ -35,15 +53,16 @@ const Browse = () => {
       }
     } else {
       // No search query, just show all media or filter by type
-      if (typeFilter === 'book') {
-        setResults(sampleBooks);
-      } else if (typeFilter === 'movie') {
-        setResults(sampleMovies);
+      if (typeFilter === 'book' && books) {
+        setResults(books);
+      } else if (typeFilter === 'movie' && movies) {
+        setResults(movies);
       } else {
-        setResults(getAllMedia());
+        // Combine books and movies
+        setResults([...books, ...movies]);
       }
     }
-  }, [searchQuery, typeFilter]);
+  }, [searchQuery, typeFilter, books, movies, searchResults]);
   
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -53,8 +72,7 @@ const Browse = () => {
     window.history.pushState({}, '', `?${newSearchParams.toString()}`);
     
     // Update results based on the new tab
-    if (searchQuery) {
-      const searchResults = searchMedia(searchQuery);
+    if (searchQuery && searchResults) {
       if (value !== 'all') {
         const filteredResults = searchResults.filter(item => item.type === value);
         setResults(filteredResults);
@@ -62,15 +80,17 @@ const Browse = () => {
         setResults(searchResults);
       }
     } else {
-      if (value === 'book') {
-        setResults(sampleBooks);
-      } else if (value === 'movie') {
-        setResults(sampleMovies);
+      if (value === 'book' && books) {
+        setResults(books);
+      } else if (value === 'movie' && movies) {
+        setResults(movies);
       } else {
-        setResults(getAllMedia());
+        setResults([...books, ...movies]);
       }
     }
   };
+
+  const isLoading = booksLoading || moviesLoading || (searchQuery && searchLoading);
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -162,7 +182,11 @@ const Browse = () => {
           )}
         </div>
         
-        {results.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <p className="text-xl">Loading...</p>
+          </div>
+        ) : results.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
             {results.map((item) => (
               <MediaCard key={item.id} media={item} />

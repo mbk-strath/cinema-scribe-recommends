@@ -1,21 +1,38 @@
 
 import { Link } from 'react-router-dom';
 import { Book, Film } from 'lucide-react';
-import { Media } from '@/lib/data';
 import StarRating from './StarRating';
+import type { Media } from '@/services/mediaService';
 
 interface MediaCardProps {
   media: Media;
 }
 
 const MediaCard = ({ media }: MediaCardProps) => {
-  const { id, type, title, creator, cover, year, rating, genres } = media;
+  // Extract common properties based on type
+  const { id, type } = media;
+  const title = media.title;
+  const year = media.year;
+  const genres = media.genres || [];
+  
+  // Type-specific properties
+  let creator = '';
+  let coverImage = '';
+  let rating = 4; // Default rating
+
+  if (type === 'book') {
+    creator = media.author;
+    coverImage = media.cover_url;
+  } else {
+    creator = media.director;
+    coverImage = media.poster_url;
+  }
   
   return (
     <Link to={`/detail/${id}`} className="media-card block bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all">
       <div className="relative aspect-[2/3] overflow-hidden">
         <img 
-          src={cover} 
+          src={coverImage} 
           alt={title} 
           className="w-full h-full object-cover"
         />

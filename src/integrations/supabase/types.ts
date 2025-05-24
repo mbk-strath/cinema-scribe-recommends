@@ -9,6 +9,78 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      books: {
+        Row: {
+          author: string
+          cover_url: string
+          created_at: string
+          description: string | null
+          genres: string[]
+          id: string
+          title: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          author: string
+          cover_url: string
+          created_at?: string
+          description?: string | null
+          genres: string[]
+          id?: string
+          title: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          author?: string
+          cover_url?: string
+          created_at?: string
+          description?: string | null
+          genres?: string[]
+          id?: string
+          title?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      movies: {
+        Row: {
+          created_at: string
+          description: string | null
+          director: string
+          genres: string[]
+          id: string
+          poster_url: string
+          title: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          director: string
+          genres: string[]
+          id?: string
+          poster_url: string
+          title: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          director?: string
+          genres?: string[]
+          id?: string
+          poster_url?: string
+          title?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

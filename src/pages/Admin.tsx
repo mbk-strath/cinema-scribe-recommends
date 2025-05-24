@@ -26,15 +26,19 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { addBook, addMovie, getBooks, getMovies } from '@/services/mediaService';
+import { Book as BookType, Movie as MovieType } from '@/services/mediaService';
 
 const Admin = () => {
   const { user, isAdmin, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [books, setBooks] = useState([]);
-  const [movies, setMovies] = useState([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [books, setBooks] = useState<BookType[]>([]);
+  const [movies, setMovies] = useState<MovieType[]>([]);
+  const [isBookDialogOpen, setIsBookDialogOpen] = useState(false);
+  const [isMovieDialogOpen, setIsMovieDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     // Redirect if not logged in or not an admin
@@ -48,52 +52,123 @@ const Admin = () => {
     }
   }, [user, isAdmin, isLoading, navigate, toast]);
 
+  useEffect(() => {
+    if (user && isAdmin) {
+      loadBooks();
+      loadMovies();
+    }
+  }, [user, isAdmin]);
+
+  const loadBooks = async () => {
+    try {
+      const bookData = await getBooks();
+      setBooks(bookData);
+    } catch (error) {
+      toast({
+        title: "Error loading books",
+        description: "Failed to load books from the database.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadMovies = async () => {
+    try {
+      const movieData = await getMovies();
+      setMovies(movieData);
+    } catch (error) {
+      toast({
+        title: "Error loading movies",
+        description: "Failed to load movies from the database.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleAddBook = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
+    setIsSubmitting(true);
     
-    const bookData = {
-      title: formData.get('title') as string,
-      author: formData.get('author') as string,
-      year: parseInt(formData.get('year') as string),
-      genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
-      cover_url: formData.get('cover') as string,
-      description: formData.get('description') as string,
-    };
+    try {
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+      
+      const bookData = {
+        title: formData.get('title') as string,
+        author: formData.get('author') as string,
+        year: parseInt(formData.get('year') as string),
+        genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
+        cover_url: formData.get('cover') as string,
+        description: formData.get('description') as string,
+      };
 
-    // In a real app, you would save this to a Supabase table
-    toast({
-      title: "Book added",
-      description: `${bookData.title} has been added to the database.`,
-    });
+      await addBook(bookData);
+      
+      toast({
+        title: "Book added",
+        description: `${bookData.title} has been added to the database.`,
+      });
 
-    setIsDialogOpen(false);
-    form.reset();
+      // Invalidate and refetch queries
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+      queryClient.invalidateQueries({ queryKey: ['media'] });
+      
+      setIsBookDialogOpen(false);
+      form.reset();
+      loadBooks();
+    } catch (error) {
+      console.error('Error adding book:', error);
+      toast({
+        title: "Error adding book",
+        description: "There was a problem adding the book.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAddMovie = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
+    setIsSubmitting(true);
     
-    const movieData = {
-      title: formData.get('title') as string,
-      director: formData.get('director') as string,
-      year: parseInt(formData.get('year') as string),
-      genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
-      poster_url: formData.get('poster') as string,
-      description: formData.get('description') as string,
-    };
+    try {
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+      
+      const movieData = {
+        title: formData.get('title') as string,
+        director: formData.get('director') as string,
+        year: parseInt(formData.get('year') as string),
+        genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
+        poster_url: formData.get('poster') as string,
+        description: formData.get('description') as string,
+      };
 
-    // In a real app, you would save this to a Supabase table
-    toast({
-      title: "Movie added",
-      description: `${movieData.title} has been added to the database.`,
-    });
+      await addMovie(movieData);
+      
+      toast({
+        title: "Movie added",
+        description: `${movieData.title} has been added to the database.`,
+      });
 
-    setIsDialogOpen(false);
-    form.reset();
+      // Invalidate and refetch queries
+      queryClient.invalidateQueries({ queryKey: ['movies'] });
+      queryClient.invalidateQueries({ queryKey: ['media'] });
+      
+      setIsMovieDialogOpen(false);
+      form.reset();
+      loadMovies();
+    } catch (error) {
+      console.error('Error adding movie:', error);
+      toast({
+        title: "Error adding movie",
+        description: "There was a problem adding the movie.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoading) {
@@ -138,7 +213,7 @@ const Admin = () => {
           <TabsContent value="books" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-medium">Manage Books</h2>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog open={isBookDialogOpen} onOpenChange={setIsBookDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus size={16} className="mr-2" />
@@ -187,11 +262,11 @@ const Admin = () => {
                     </div>
                     
                     <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={() => setIsBookDialogOpen(false)}>
                         Cancel
                       </Button>
-                      <Button type="submit">
-                        Add Book
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Adding...' : 'Add Book'}
                       </Button>
                     </div>
                   </form>
@@ -200,14 +275,35 @@ const Admin = () => {
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-center text-gray-500">Book database functionality is connected. You can start adding books.</p>
+              {books.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {books.map((book) => (
+                    <div key={book.id} className="border p-4 rounded-md flex gap-4">
+                      <img 
+                        src={book.cover_url} 
+                        alt={book.title}
+                        className="w-16 h-24 object-cover rounded"
+                      />
+                      <div>
+                        <h3 className="font-medium">{book.title}</h3>
+                        <p className="text-sm text-gray-500">{book.author}, {book.year}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {book.genres.join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">No books have been added yet.</p>
+              )}
             </div>
           </TabsContent>
           
           <TabsContent value="movies" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-medium">Manage Movies</h2>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog open={isMovieDialogOpen} onOpenChange={setIsMovieDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus size={16} className="mr-2" />
@@ -256,11 +352,11 @@ const Admin = () => {
                     </div>
                     
                     <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={() => setIsMovieDialogOpen(false)}>
                         Cancel
                       </Button>
-                      <Button type="submit">
-                        Add Movie
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Adding...' : 'Add Movie'}
                       </Button>
                     </div>
                   </form>
@@ -269,7 +365,28 @@ const Admin = () => {
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-center text-gray-500">Movie database functionality is connected. You can start adding movies.</p>
+              {movies.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {movies.map((movie) => (
+                    <div key={movie.id} className="border p-4 rounded-md flex gap-4">
+                      <img 
+                        src={movie.poster_url} 
+                        alt={movie.title}
+                        className="w-16 h-24 object-cover rounded"
+                      />
+                      <div>
+                        <h3 className="font-medium">{movie.title}</h3>
+                        <p className="text-sm text-gray-500">{movie.director}, {movie.year}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {movie.genres.join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">No movies have been added yet.</p>
+              )}
             </div>
           </TabsContent>
         </Tabs>
