@@ -1,28 +1,64 @@
 
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, Book, Film, Plus, Star as StarIcon } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ChevronLeft, Book, Film, Plus, Star as StarIcon, Edit, Trash2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import StarRating from '@/components/StarRating';
-import ReviewCard from '@/components/ReviewCard';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { getMediaById, Media } from '@/lib/data';
+import { getMediaById, Media, Review, getReviewsByMediaId, addReview, updateBook, updateMovie } from '@/services/mediaService';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Detail = () => {
   const { id } = useParams<{ id: string }>();
-  const [media, setMedia] = useState<Media | undefined>(undefined);
+  const [media, setMedia] = useState<Media | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [reviewText, setReviewText] = useState('');
+  const { toast } = useToast();
+  const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   useEffect(() => {
-    if (id) {
-      const mediaItem = getMediaById(id);
-      setMedia(mediaItem);
-    }
-  }, [id]);
+    const loadMedia = async () => {
+      if (id) {
+        try {
+          const mediaData = await getMediaById(id);
+          setMedia(mediaData);
+          
+          // Load reviews for this media
+          if (mediaData) {
+            const reviewsData = await getReviewsByMediaId(id);
+            setReviews(reviewsData);
+          }
+        } catch (error) {
+          console.error('Error loading media:', error);
+          toast({
+            title: 'Error',
+            description: 'Could not load the requested media',
+            variant: 'destructive'
+          });
+        }
+      }
+    };
+    
+    loadMedia();
+  }, [id, toast]);
   
   if (!media) {
     return (
@@ -39,17 +75,92 @@ const Detail = () => {
     );
   }
   
-  const { title, creator, cover, year, rating, genres, description, reviews, type } = media;
+  const { title, year, genres = [], description, type, id: mediaId } = media;
+  const creator = type === 'book' ? media.author : media.director;
+  const coverImage = type === 'book' ? media.cover_url : media.poster_url;
   
   const handleRatingClick = (value: number) => {
     setUserRating(value);
   };
   
-  const handleSubmitReview = () => {
-    // In a real app, this would submit the review to a database
-    alert('Review submission would be implemented with a backend');
-    setReviewText('');
-    setUserRating(null);
+  const handleSubmitReview = async () => {
+    if (!user || !userRating) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      await addReview({
+        media_id: mediaId,
+        media_type: type,
+        user_id: user.id,
+        rating: userRating,
+        content: reviewText.trim() || null
+      });
+      
+      // Refresh reviews
+      const updatedReviews = await getReviewsByMediaId(mediaId);
+      setReviews(updatedReviews);
+      
+      toast({
+        title: 'Success',
+        description: 'Your review has been submitted',
+      });
+      
+      setReviewText('');
+      setUserRating(null);
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not submit your review',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (formData: FormData) => {
+    try {
+      setIsSubmitting(true);
+      
+      const updates: any = {
+        title: formData.get('title') as string,
+        year: parseInt(formData.get('year') as string),
+        genres: (formData.get('genres') as string).split(',').map(g => g.trim()),
+        description: formData.get('description') as string,
+      };
+      
+      if (type === 'book') {
+        updates.author = formData.get('creator') as string;
+        updates.cover_url = formData.get('image_url') as string;
+        
+        const updatedBook = await updateBook(mediaId, updates);
+        setMedia(updatedBook);
+      } else {
+        updates.director = formData.get('creator') as string;
+        updates.poster_url = formData.get('image_url') as string;
+        
+        const updatedMovie = await updateMovie(mediaId, updates);
+        setMedia(updatedMovie);
+      }
+      
+      toast({
+        title: 'Success',
+        description: `${type === 'book' ? 'Book' : 'Movie'} updated successfully`,
+      });
+      
+      setIsEditDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating:', error);
+      toast({
+        title: 'Error',
+        description: `Could not update the ${type}`,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   return (
@@ -71,7 +182,7 @@ const Detail = () => {
             <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
               <div className="relative">
                 <img 
-                  src={cover} 
+                  src={coverImage} 
                   alt={title}
                   className="w-full aspect-[2/3] object-cover" 
                 />
@@ -91,7 +202,7 @@ const Detail = () => {
               </div>
               <div className="p-4">
                 <div className="flex justify-between items-center mb-4">
-                  <StarRating rating={rating} size={20} />
+                  <StarRating rating={4} size={20} />
                   <span className="text-sm text-gray-500">
                     {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
                   </span>
@@ -100,9 +211,70 @@ const Detail = () => {
                   <Plus size={16} className="mr-2" />
                   Add to List
                 </Button>
-                <Button variant="outline" className="w-full">
-                  Share
-                </Button>
+                
+                {isAdmin && (
+                  <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full mt-2">
+                        <Edit size={16} className="mr-2" />
+                        Edit {type === 'book' ? 'Book' : 'Movie'}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[525px]">
+                      <DialogHeader>
+                        <DialogTitle>Edit {type === 'book' ? 'Book' : 'Movie'}</DialogTitle>
+                        <DialogDescription>
+                          Make changes to the {type} information below.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        handleUpdate(new FormData(e.currentTarget));
+                      }} className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="title">Title</Label>
+                          <Input id="title" name="title" defaultValue={title} required />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="creator">{type === 'book' ? 'Author' : 'Director'}</Label>
+                          <Input id="creator" name="creator" defaultValue={creator} required />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="year">Year</Label>
+                            <Input id="year" name="year" type="number" defaultValue={year} required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="genres">Genres (comma separated)</Label>
+                            <Input id="genres" name="genres" defaultValue={genres.join(', ')} required />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="image_url">{type === 'book' ? 'Cover' : 'Poster'} Image URL</Label>
+                          <Input id="image_url" name="image_url" type="url" defaultValue={coverImage} required />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea id="description" name="description" rows={4} defaultValue={description || ''} />
+                        </div>
+                        
+                        <div className="flex justify-end gap-2 pt-2">
+                          <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? 'Saving...' : 'Save Changes'}
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </div>
           </div>
@@ -129,7 +301,7 @@ const Detail = () => {
             
             <div className="prose max-w-none mb-8">
               <h2 className="text-xl font-serif font-semibold mb-2">Description</h2>
-              <p className="text-gray-700">{description}</p>
+              <p className="text-gray-700">{description || 'No description available.'}</p>
             </div>
             
             {/* Reviews Section */}
@@ -139,7 +311,33 @@ const Detail = () => {
               {reviews.length > 0 ? (
                 <div className="space-y-4">
                   {reviews.map((review) => (
-                    <ReviewCard key={review.id} review={review} />
+                    <div key={review.id} className="p-5 border border-gray-200 rounded-lg mb-4 bg-white shadow-sm">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
+                          {review.user?.avatar_url ? (
+                            <img 
+                              src={review.user.avatar_url} 
+                              alt={review.user.username}
+                              className="w-full h-full object-cover" 
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-navy text-white">
+                              {review.user?.username.charAt(0) || '?'}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{review.user?.username || 'Anonymous'}</h4>
+                          <div className="flex items-center gap-2">
+                            <StarRating rating={review.rating} size={14} />
+                            <span className="text-xs text-gray-500">
+                              {new Date(review.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-gray-700">{review.content || 'No comment provided.'}</p>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -147,49 +345,56 @@ const Detail = () => {
               )}
               
               {/* Add Review Form */}
-              <div className="mt-8 bg-white p-5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
-                <h3 className="font-medium mb-4">Write a Review</h3>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">Your Rating</label>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => handleRatingClick(star)}
-                        className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${
-                          userRating && userRating >= star ? 'text-gold-DEFAULT' : 'text-gray-300'
-                        }`}
-                      >
-                        <StarIcon key={star} size={24} fill={userRating && userRating >= star ? '#e6b54a' : 'none'} />
-                      </button>
-                    ))}
-                    {userRating && (
-                      <span className="ml-2 self-center text-sm">{userRating} stars</span>
-                    )}
+              {user ? (
+                <div className="mt-8 bg-white p-5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+                  <h3 className="font-medium mb-4">Write a Review</h3>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Your Rating</label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => handleRatingClick(star)}
+                          className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${
+                            userRating && userRating >= star ? 'text-gold-DEFAULT' : 'text-gray-300'
+                          }`}
+                        >
+                          <StarIcon key={star} size={24} fill={userRating && userRating >= star ? '#e6b54a' : 'none'} />
+                        </button>
+                      ))}
+                      {userRating && (
+                        <span className="ml-2 self-center text-sm">{userRating} stars</span>
+                      )}
+                    </div>
                   </div>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Your Review</label>
+                    <Textarea 
+                      placeholder="Write your thoughts here..."
+                      rows={4}
+                      value={reviewText}
+                      onChange={(e) => setReviewText(e.target.value)}
+                      className="resize-none focus:ring-navy focus:border-navy"
+                    />
+                  </div>
+                  
+                  <Button 
+                    onClick={handleSubmitReview}
+                    disabled={!userRating || isSubmitting}
+                    className="bg-navy hover:bg-navy-light transition-colors"
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit Review'}
+                  </Button>
                 </div>
-                
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">Your Review</label>
-                  <Textarea 
-                    placeholder="Write your thoughts here..."
-                    rows={4}
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    className="resize-none focus:ring-navy focus:border-navy"
-                  />
+              ) : (
+                <div className="mt-8 bg-gray-50 p-5 rounded-lg border border-gray-200 text-center">
+                  <p className="mb-4">Please sign in to leave a review</p>
+                  <Button onClick={() => navigate('/auth')}>Sign In</Button>
                 </div>
-                
-                <Button 
-                  onClick={handleSubmitReview}
-                  disabled={!userRating || !reviewText.trim()}
-                  className="bg-navy hover:bg-navy-light transition-colors"
-                >
-                  Submit Review
-                </Button>
-              </div>
+              )}
             </div>
           </div>
         </div>

@@ -9,11 +9,8 @@ interface MediaCardProps {
 }
 
 const MediaCard = ({ media }: MediaCardProps) => {
-  // Extract common properties based on type
-  const { id, type } = media;
-  const title = media.title;
-  const year = media.year;
-  const genres = media.genres || [];
+  // Extract common properties
+  const { id, type, title, year, genres = [] } = media;
   
   // Type-specific properties
   let creator = '';
