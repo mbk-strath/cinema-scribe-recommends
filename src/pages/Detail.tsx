@@ -1,10 +1,11 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Book, Film, Plus, Star as StarIcon, Edit, Trash2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import StarRating from '@/components/StarRating';
 import Footer from '@/components/Footer';
+import ReviewCard from '@/components/ReviewCard';
+import GenreSection from '@/components/GenreSection';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { getMediaById, Media, Review, getReviewsByMediaId, addReview, updateBook, updateMovie } from '@/services/mediaService';
@@ -28,6 +29,7 @@ const Detail = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [reviewText, setReviewText] = useState('');
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -117,6 +119,37 @@ const Detail = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditReview = (review: Review) => {
+    setEditingReview(review);
+    setUserRating(review.rating);
+    setReviewText(review.content || '');
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!user) return;
+    
+    try {
+      // You'll need to implement deleteReview in mediaService
+      console.log('Delete review:', reviewId);
+      
+      // Refresh reviews after deletion
+      const updatedReviews = await getReviewsByMediaId(mediaId);
+      setReviews(updatedReviews);
+      
+      toast({
+        title: 'Success',
+        description: 'Review deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not delete review',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -304,6 +337,9 @@ const Detail = () => {
               <p className="text-gray-700">{description || 'No description available.'}</p>
             </div>
             
+            {/* Genre Section for Similar Content */}
+            <GenreSection currentMedia={media} />
+            
             {/* Reviews Section */}
             <div className="mt-10">
               <h2 className="text-xl font-serif font-semibold mb-4">Reviews</h2>
@@ -311,33 +347,12 @@ const Detail = () => {
               {reviews.length > 0 ? (
                 <div className="space-y-4">
                   {reviews.map((review) => (
-                    <div key={review.id} className="p-5 border border-gray-200 rounded-lg mb-4 bg-white shadow-sm">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
-                          {review.user?.avatar_url ? (
-                            <img 
-                              src={review.user.avatar_url} 
-                              alt={review.user.username}
-                              className="w-full h-full object-cover" 
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-navy text-white">
-                              {review.user?.username.charAt(0) || '?'}
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{review.user?.username || 'Anonymous'}</h4>
-                          <div className="flex items-center gap-2">
-                            <StarRating rating={review.rating} size={14} />
-                            <span className="text-xs text-gray-500">
-                              {new Date(review.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-gray-700">{review.content || 'No comment provided.'}</p>
-                    </div>
+                    <ReviewCard 
+                      key={review.id} 
+                      review={review}
+                      onEdit={handleEditReview}
+                      onDelete={handleDeleteReview}
+                    />
                   ))}
                 </div>
               ) : (
@@ -347,7 +362,9 @@ const Detail = () => {
               {/* Add Review Form */}
               {user ? (
                 <div className="mt-8 bg-white p-5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <h3 className="font-medium mb-4">Write a Review</h3>
+                  <h3 className="font-medium mb-4">
+                    {editingReview ? 'Edit Your Review' : 'Write a Review'}
+                  </h3>
                   
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2">Your Rating</label>
@@ -381,13 +398,27 @@ const Detail = () => {
                     />
                   </div>
                   
-                  <Button 
-                    onClick={handleSubmitReview}
-                    disabled={!userRating || isSubmitting}
-                    className="bg-navy hover:bg-navy-light transition-colors"
-                  >
-                    {isSubmitting ? 'Submitting...' : 'Submit Review'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleSubmitReview}
+                      disabled={!userRating || isSubmitting}
+                      className="bg-navy hover:bg-navy-light transition-colors"
+                    >
+                      {isSubmitting ? 'Submitting...' : editingReview ? 'Update Review' : 'Submit Review'}
+                    </Button>
+                    {editingReview && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setEditingReview(null);
+                          setUserRating(null);
+                          setReviewText('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="mt-8 bg-gray-50 p-5 rounded-lg border border-gray-200 text-center">

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 
@@ -198,6 +197,27 @@ export const addReview = async (review: Omit<Review, 'id' | 'created_at' | 'upda
   
   if (error) throw error;
   return data;
+};
+
+export const updateReview = async (id: string, updates: Partial<Pick<Review, 'rating' | 'content'>>) => {
+  const { data, error } = await supabase
+    .from('reviews')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+};
+
+export const deleteReview = async (id: string) => {
+  const { error } = await supabase
+    .from('reviews')
+    .delete()
+    .eq('id', id);
+  
+  if (error) throw error;
 };
 
 export const getReviewsByMediaId = async (mediaId: string): Promise<Review[]> => {
