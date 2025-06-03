@@ -56,29 +56,29 @@ export type PostComment = {
 // Community functions
 export const getCommunities = async (): Promise<Community[]> => {
   const { data, error } = await supabase
-    .from('communities')
+    .from('communities' as any)
     .select('*')
     .order('member_count', { ascending: false });
   
   if (error) throw error;
-  return data || [];
+  return (data || []) as Community[];
 };
 
 export const getCommunityById = async (id: string): Promise<Community | null> => {
   const { data, error } = await supabase
-    .from('communities')
+    .from('communities' as any)
     .select('*')
     .eq('id', id)
     .single();
   
   if (error) throw error;
-  return data;
+  return data as Community;
 };
 
 export const createCommunity = async (community: Omit<Community, 'id' | 'created_at' | 'updated_at' | 'member_count'>) => {
   const { data, error } = await supabase
-    .from('communities')
-    .insert(community)
+    .from('communities' as any)
+    .insert(community as any)
     .select()
     .single();
   
@@ -88,12 +88,12 @@ export const createCommunity = async (community: Omit<Community, 'id' | 'created
 
 export const joinCommunity = async (communityId: string, userId: string) => {
   const { data, error } = await supabase
-    .from('community_members')
+    .from('community_members' as any)
     .insert({
       community_id: communityId,
       user_id: userId,
       role: 'member'
-    })
+    } as any)
     .select()
     .single();
   
@@ -103,7 +103,7 @@ export const joinCommunity = async (communityId: string, userId: string) => {
 
 export const leaveCommunity = async (communityId: string, userId: string) => {
   const { error } = await supabase
-    .from('community_members')
+    .from('community_members' as any)
     .delete()
     .eq('community_id', communityId)
     .eq('user_id', userId);
@@ -114,7 +114,7 @@ export const leaveCommunity = async (communityId: string, userId: string) => {
 // Post functions
 export const getCommunityPosts = async (communityId?: string): Promise<CommunityPost[]> => {
   let query = supabase
-    .from('community_posts')
+    .from('community_posts' as any)
     .select(`
       *,
       profiles:user_id(username, avatar_url),
@@ -130,7 +130,7 @@ export const getCommunityPosts = async (communityId?: string): Promise<Community
   
   if (error) throw error;
   
-  return data.map(post => ({
+  return (data || []).map((post: any) => ({
     ...post,
     user: post.profiles ? {
       username: post.profiles.username || 'Anonymous',
@@ -145,8 +145,8 @@ export const getCommunityPosts = async (communityId?: string): Promise<Community
 
 export const createPost = async (post: Omit<CommunityPost, 'id' | 'created_at' | 'updated_at' | 'upvotes' | 'downvotes' | 'comment_count' | 'user' | 'community' | 'user_vote'>) => {
   const { data, error } = await supabase
-    .from('community_posts')
-    .insert(post)
+    .from('community_posts' as any)
+    .insert(post as any)
     .select()
     .single();
   
@@ -157,7 +157,7 @@ export const createPost = async (post: Omit<CommunityPost, 'id' | 'created_at' |
 export const voteOnPost = async (postId: string, userId: string, voteType: 'upvote' | 'downvote') => {
   // First, check if user already voted
   const { data: existingVote } = await supabase
-    .from('post_votes')
+    .from('post_votes' as any)
     .select('vote_type')
     .eq('post_id', postId)
     .eq('user_id', userId)
@@ -167,7 +167,7 @@ export const voteOnPost = async (postId: string, userId: string, voteType: 'upvo
     if (existingVote.vote_type === voteType) {
       // Remove vote if clicking same vote
       const { error } = await supabase
-        .from('post_votes')
+        .from('post_votes' as any)
         .delete()
         .eq('post_id', postId)
         .eq('user_id', userId);
@@ -176,8 +176,8 @@ export const voteOnPost = async (postId: string, userId: string, voteType: 'upvo
     } else {
       // Update vote if different
       const { error } = await supabase
-        .from('post_votes')
-        .update({ vote_type: voteType })
+        .from('post_votes' as any)
+        .update({ vote_type: voteType } as any)
         .eq('post_id', postId)
         .eq('user_id', userId);
       
@@ -186,28 +186,28 @@ export const voteOnPost = async (postId: string, userId: string, voteType: 'upvo
   } else {
     // Create new vote
     const { error } = await supabase
-      .from('post_votes')
+      .from('post_votes' as any)
       .insert({
         post_id: postId,
         user_id: userId,
         vote_type: voteType
-      });
+      } as any);
     
     if (error) throw error;
   }
   
   // Update post vote counts
   const { data: votes } = await supabase
-    .from('post_votes')
+    .from('post_votes' as any)
     .select('vote_type')
     .eq('post_id', postId);
   
-  const upvotes = votes?.filter(v => v.vote_type === 'upvote').length || 0;
-  const downvotes = votes?.filter(v => v.vote_type === 'downvote').length || 0;
+  const upvotes = votes?.filter((v: any) => v.vote_type === 'upvote').length || 0;
+  const downvotes = votes?.filter((v: any) => v.vote_type === 'downvote').length || 0;
   
   const { error: updateError } = await supabase
-    .from('community_posts')
-    .update({ upvotes, downvotes })
+    .from('community_posts' as any)
+    .update({ upvotes, downvotes } as any)
     .eq('id', postId);
   
   if (updateError) throw updateError;
@@ -215,7 +215,7 @@ export const voteOnPost = async (postId: string, userId: string, voteType: 'upvo
 
 export const getPostComments = async (postId: string): Promise<PostComment[]> => {
   const { data, error } = await supabase
-    .from('post_comments')
+    .from('post_comments' as any)
     .select(`
       *,
       profiles:user_id(username, avatar_url)
@@ -225,7 +225,7 @@ export const getPostComments = async (postId: string): Promise<PostComment[]> =>
   
   if (error) throw error;
   
-  return data.map(comment => ({
+  return (data || []).map((comment: any) => ({
     ...comment,
     user: comment.profiles ? {
       username: comment.profiles.username || 'Anonymous',
@@ -236,8 +236,8 @@ export const getPostComments = async (postId: string): Promise<PostComment[]> =>
 
 export const addComment = async (comment: Omit<PostComment, 'id' | 'created_at' | 'updated_at' | 'upvotes' | 'downvotes' | 'user'>) => {
   const { data, error } = await supabase
-    .from('post_comments')
-    .insert(comment)
+    .from('post_comments' as any)
+    .insert(comment as any)
     .select()
     .single();
   
